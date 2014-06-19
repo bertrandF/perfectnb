@@ -229,48 +229,50 @@ lucaslehmer:
 
     ; --- ACTUAL FUNCTION BODY
     ; Local vars
-    ; rbp       => qword M
-    ; rbp+8     => qword p
-    ; rbp+16    => qword S
-    sub rbp, 24                 ; Local vars
-    mov qword [rbp+8], rax      ; rbp+8 = p
+    ; rbp       => qword p
+    ; rbp+8     => qword M
+    ; rbp+24    => qword S
+    sub rsp, 0x30                 ; Local vars
+    mov qword [rsp], rax        ; rbp+8 = p
     
     ; -- Init mpz_t vars
-    mov rdi, rbp                ; arg1 =>  (mpz_t) M
+    ;lea rax, [rbp+8]
+    ;xor rbx, rbx
+    lea rdi, [rsp+0x10]            ; arg1 =>  (mpz_t) M
     call __gmpz_init            ; init M
-    lea rdi, [rbp+16]           ; arg1 => (mpz_t) S
+    lea rdi, [rsp+0x20]           ; arg1 => (mpz_t) S
     call __gmpz_init            ; init S
-    lea rdi, [rbp+16]           ; arg1 => (mpz_t) S
+    lea rdi, [rsp+0x20]           ; arg1 => (mpz_t) S
     mov rsi, 0x04               ; arg2 => init value = 4
     call __gmpz_set_ui          ; S = 0x04
     
     ; -- Compute M = 2^p - 1
-    mov rdi, rbp                ; arg1 => result in M
+    lea rdi, [rbp+8]            ; arg1 => result in M
     mov rsi, 0x02               ; arg2 => base = 2
-    mov rdx, qword [rbp+8]      ; arg3 => exp = p
+    mov rdx, qword [rbp]        ; arg3 => exp = p
     call __gmpz_ui_pow_ui       ; M = 2^p
-    mov rdi, rbp                ; arg1 => result in M
-    mov rsi, rbp                ; arg2 => operand1 = M
+    lea rdi, [rbp+8]            ; arg1 => result in M
+    lea rsi, [rbp+8]            ; arg2 => operand1 = M
     mov rdx, 0x01               ; arg3 => operand2 = 0x01
     call __gmpz_sub_ui          ; M = 2^p - 1
     
     ; -- Main loop
-    mov rcx, [rbp+8]            ; rcx will be the counter
-    sub rcx, 0x01               ; rcx = p - 1
+    mov rcx, [rbp]              ; rcx will be the counter
+    sub rcx, 0x02               ; rcx = p - 2
 .loop:
     push rcx                    ; save counter
     ; - process
-    lea rdi, [rbp+16]           ; arg1 => result in S
-    lea rsi, [rbp+16]           ; arg2 => operand1 = S
-    lea rdx, [rbp+16]           ; arg3 => operand2 = S
+    lea rdi, [rbp+24]           ; arg1 => result in S
+    lea rsi, [rbp+24]           ; arg2 => operand1 = S
+    lea rdx, [rbp+24]           ; arg3 => operand2 = S
     call __gmpz_mul             ; S = S * S
-    lea rdi, [rbp+16]           ; arg1 => result in S
-    lea rsi, [rbp+16]           ; arg2 => operand1 = S
+    lea rdi, [rbp+24]           ; arg1 => result in S
+    lea rsi, [rbp+24]           ; arg2 => operand1 = S
     mov rdx, 0x02               ; arg3 => operand2 = 0x02
     call __gmpz_sub_ui          ; S = (S*S) - 2
-    lea rdi, [rbp+16]           ; arg1 => result in S
-    lea rdi, [rbp+16]           ; arg2 => numerator = S
-    mov rdx, rbp                ; arg3 => denominator = M
+    lea rdi, [rbp+24]           ; arg1 => result in S
+    lea rdi, [rbp+24]           ; arg2 => numerator = S
+    lea rdx, [rbp+8]            ; arg3 => denominator = M
     call __gmpz_mod             ; S = ((S*S)-2) mod( M )
     ; - check loop end
     pop rcx                     ; restore counter
@@ -282,11 +284,12 @@ lucaslehmer:
     ; TODO: mpz_cmp_ui is a fucking macro !!! find something
     
     ; -- Clean up
-    mov rdi, rbp                ; arg1 =  (mpz_t) M
+    lea rdi, [rbp+8]            ; arg1 =  (mpz_t) M
     call __gmpz_clear           ; clean M
-    lea rdi, [rbp+16]           ; arg1 = (mpz_t) M
+    lea rdi, [rbp+24]           ; arg1 = (mpz_t) M
     call __gmpz_clear           ; clean S
 
+    mov rax, 0x00
     ; --- EVERY CALLEE CLEAN UP
     mov rsp, rbp                ; desallocate local vars
     pop rbp                     ; restore caller's base pointer
@@ -302,6 +305,7 @@ _start:
     ; --- FIND PERFECT NUMBERS
     ; -- FIND prime numbers
     call findprimes
+    call printprimes
     
     ; -- LOOP through found primes to find perfect num
     mov rcx, 0x03               ; counter init
