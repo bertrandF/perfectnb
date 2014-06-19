@@ -17,7 +17,7 @@
 ;;    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 ; ------------------------------------------------------------------------------
 
-; ---------------------------------------------------
+; ------------------------------------------------------------------------------
 ; >> https://en.wikipedia.org/wiki/Perfect_number <<
 ;
 ; NOTES: With this algorithm I try to find even perfect numbers
@@ -39,7 +39,7 @@
 ;   - do                div ECX
 ;   - remainer in       EDX
 ;   - WARNING:          EAX is no longer valid !!!
-; ---------------------------------------------------
+; ------------------------------------------------------------------------------
 
 section .rodata
     printingmsg:    db  "Perfect numbers found:", 10, 0 ; Printing message
@@ -66,7 +66,8 @@ section .text
     extern  __gmpz_clear
 
 
-; ---------------------------------------------------
+
+; ------------------------------------------------------------------------------
 ; Find the prime numbers using the sieve of Atkin.
 ; >> http://en.wikipedia.org/wiki/Sieve_of_Atkin <<
 ;
@@ -170,6 +171,22 @@ findprimes:
     cmp rax, [limitsqrt]        ; ? end of loop
     jle .loop_finalize          ; rax <= limitsqrt
 
+    ; --- EVERY CALLEE CLEAN UP
+    mov rsp, rbp                ; desallocate local vars
+    pop rbp                     ; restore caller's base pointer
+    ret                         ; return
+; ------------------------------------------------------------------------------
+
+
+
+; ------------------------------------------------------------------------------
+; Prints primes from the sieve
+;
+printprimes:
+    ; --- EVERY CALLEE INIT
+    push rbp                    ; save caller base pointer
+    mov rbp, rsp                ; set new base pointer
+
     ; - print results
     xor rax, rax                ; because printf is varargs
     mov rdi, printingmsg        ; printf 1st arg
@@ -194,10 +211,11 @@ findprimes:
     mov rsp, rbp                ; desallocate local vars
     pop rbp                     ; restore caller's base pointer
     ret                         ; return
+; ------------------------------------------------------------------------------
 
 
 
-; ---------------------------------------------------
+; ------------------------------------------------------------------------------
 ; Lucas-Lehmer Mersenne prime check.
 ; >> https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer_primality_test <<
 ;
@@ -273,22 +291,43 @@ lucaslehmer:
     mov rsp, rbp                ; desallocate local vars
     pop rbp                     ; restore caller's base pointer
     ret                         ; return
+; ------------------------------------------------------------------------------
 
 
 
-; ---------------------------------------------------
+; ------------------------------------------------------------------------------
 ; Entry point
 ;
 _start:
     ; --- FIND PERFECT NUMBERS
     ; -- FIND prime numbers
     call findprimes
-    ; -- FIND p such as (2^p-1) == N
-        ; - IF p exists then 2^(p-1)(2^p-1) is a perfect number
-        ; - ELSE next
+    
+    ; -- LOOP through found primes to find perfect num
+    mov rcx, 0x03               ; counter init
+.loop:
+    cmp byte [sieve+rcx], 0x00  ; ? rcx is prime 
+    je .loop_end                ; rcx not prime
+    push rcx                    ; save counter
+    mov rax, rcx                ; rax = prime number
+    call lucaslehmer
+    cmp rax, 0x00               ; ? found Mersenne prime
+    je .loop_end                ; not Mersenne prime
+    xor rax, rax                ; because printf is varargs
+    mov rdi, format             ; printf 1st arg
+    xor rsi, rsi
+    mov rsi, rcx                ; printf 2nd arg
+    call printf
+.loop_end:
+    pop rcx                     ; restore counter
+    inc rcx                     ; ++counter
+    cmp rcx, [limit]            ; ? rcx > limit 
+    jle .loop                   ; rcx <= limit
+    
    
     ; --- EXIT
     mov rax, 60                 ; sys_exit
     mov rdi, 0                  ; EXIT_SUCCESS
     syscall
+; ------------------------------------------------------------------------------
     
