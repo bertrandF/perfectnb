@@ -1,7 +1,7 @@
 AS=nasm
 LD=ld
 ASFLAGS=-g -f elf64
-LDFLAGS=-m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -lc
+LDFLAGS=-m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -lc -lgmp
 EXEC=perfectnb
 SRC=perfectnb.asm
 OBJ=$(SRC:.asm=.o)

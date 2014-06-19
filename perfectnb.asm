@@ -22,12 +22,12 @@
 ;
 ; NOTES: With this algorithm I try to find even perfect numbers
 ; only. I use Euclid theorem on even prefect numbers:
-;       N = 2^(p-1) * (2^p - 1) where (2^p - 1) is prime, is prime.
+;       N = 2^(p-1) * (2^p - 1) where (2^p - 1) is prime, is perfect.
 ;
 ; I use the following algorithm:
 ;   - Find p, a prime number
 ;   - Compute N=(2^p-1)
-;   - Check that N is prime
+;   - Check that N is prime (Lucas-Lehmer primality test)
 ;       - IF yes: Found a perfect number 2^(p-1) * (2^p - 1)
 ;       - IF no : Next loop
 ;   - Next loop
@@ -54,7 +54,16 @@ section .data
 
 section .text
     global  _start
+    
     extern  printf
+    
+    extern  __gmpz_init
+    extern  __gmpz_set_ui
+    extern  __gmpz_ui_pow_ui
+    extern  __gmpz_sub_ui
+    extern  __gmpz_mul
+    extern  __gmpz_mod
+    extern  __gmpz_clear
 
 
 ; ---------------------------------------------------
@@ -66,7 +75,7 @@ findprimes:
     push rbp                    ; save caller base pointer
     mov rbp, rsp                ; set new base pointer
 
-    ; --- Known primes
+    ; -- Known primes
     mov byte [sieve+2], 0xff    ; 2 is prime
     mov byte [sieve+3], 0xff    ; 3 is prime
 
@@ -180,6 +189,85 @@ findprimes:
     pop rcx                     ; get back saved rcx
     cmp rcx, [limit]            ; ? rcx < limit
     jl .loop_print
+
+    ; --- EVERY CALLEE CLEAN UP
+    mov rsp, rbp                ; desallocate local vars
+    pop rbp                     ; restore caller's base pointer
+    ret                         ; return
+
+
+
+; ---------------------------------------------------
+; Lucas-Lehmer Mersenne prime check.
+; >> https://en.wikipedia.org/wiki/Lucas%E2%80%93Lehmer_primality_test <<
+;
+; lucaslehmer ( p )
+; - p : Odd prime number gieven through RAX
+; - returns: RAX=0 if FALSE, RAX=1 if true
+lucaslehmer:
+    ; --- EVERY CALLEE INIT
+    push rbp                    ; save caller base pointer
+    mov rbp, rsp                ; set new base pointer
+
+    ; --- ACTUAL FUNCTION BODY
+    ; Local vars
+    ; rbp       => qword M
+    ; rbp+8     => qword p
+    ; rbp+16    => qword S
+    sub rbp, 24                 ; Local vars
+    mov qword [rbp+8], rax      ; rbp+8 = p
+    
+    ; -- Init mpz_t vars
+    mov rdi, rbp                ; arg1 =>  (mpz_t) M
+    call __gmpz_init            ; init M
+    lea rdi, [rbp+16]           ; arg1 => (mpz_t) S
+    call __gmpz_init            ; init S
+    lea rdi, [rbp+16]           ; arg1 => (mpz_t) S
+    mov rsi, 0x04               ; arg2 => init value = 4
+    call __gmpz_set_ui          ; S = 0x04
+    
+    ; -- Compute M = 2^p - 1
+    mov rdi, rbp                ; arg1 => result in M
+    mov rsi, 0x02               ; arg2 => base = 2
+    mov rdx, qword [rbp+8]      ; arg3 => exp = p
+    call __gmpz_ui_pow_ui       ; M = 2^p
+    mov rdi, rbp                ; arg1 => result in M
+    mov rsi, rbp                ; arg2 => operand1 = M
+    mov rdx, 0x01               ; arg3 => operand2 = 0x01
+    call __gmpz_sub_ui          ; M = 2^p - 1
+    
+    ; -- Main loop
+    mov rcx, [rbp+8]            ; rcx will be the counter
+    sub rcx, 0x01               ; rcx = p - 1
+.loop:
+    push rcx                    ; save counter
+    ; - process
+    lea rdi, [rbp+16]           ; arg1 => result in S
+    lea rsi, [rbp+16]           ; arg2 => operand1 = S
+    lea rdx, [rbp+16]           ; arg3 => operand2 = S
+    call __gmpz_mul             ; S = S * S
+    lea rdi, [rbp+16]           ; arg1 => result in S
+    lea rsi, [rbp+16]           ; arg2 => operand1 = S
+    mov rdx, 0x02               ; arg3 => operand2 = 0x02
+    call __gmpz_sub_ui          ; S = (S*S) - 2
+    lea rdi, [rbp+16]           ; arg1 => result in S
+    lea rdi, [rbp+16]           ; arg2 => numerator = S
+    mov rdx, rbp                ; arg3 => denominator = M
+    call __gmpz_mod             ; S = ((S*S)-2) mod( M )
+    ; - check loop end
+    pop rcx                     ; restore counter
+    dec rcx                     ; counter--
+    cmp rcx, 0x00               ; ? counter == 0
+    jg .loop                    ; counter > 0
+
+    ; -- Compare S to 0 => S prime ??
+    ; TODO: mpz_cmp_ui is a fucking macro !!! find something
+    
+    ; -- Clean up
+    mov rdi, rbp                ; arg1 =  (mpz_t) M
+    call __gmpz_clear           ; clean M
+    lea rdi, [rbp+16]           ; arg1 = (mpz_t) M
+    call __gmpz_clear           ; clean S
 
     ; --- EVERY CALLEE CLEAN UP
     mov rsp, rbp                ; desallocate local vars
