@@ -230,9 +230,9 @@ lucaslehmer:
     ; --- ACTUAL FUNCTION BODY
     ; Local vars
     ; rbp       => qword p
-    ; rbp+8     => qword M
-    ; rbp+24    => qword S
-    sub rsp, 0x30                 ; Local vars
+    ; rbp+10    => qword M
+    ; rbp+20    => qword S
+    sub rsp, 0x40                 ; Local vars
     mov qword [rsp], rax        ; rbp+8 = p
     
     ; -- Init mpz_t vars
@@ -247,32 +247,32 @@ lucaslehmer:
     call __gmpz_set_ui          ; S = 0x04
     
     ; -- Compute M = 2^p - 1
-    lea rdi, [rbp+8]            ; arg1 => result in M
+    lea rdi, [rsp+0x10]         ; arg1 => result in M
     mov rsi, 0x02               ; arg2 => base = 2
-    mov rdx, qword [rbp]        ; arg3 => exp = p
+    mov rdx, qword [rsp]        ; arg3 => exp = p
     call __gmpz_ui_pow_ui       ; M = 2^p
-    lea rdi, [rbp+8]            ; arg1 => result in M
-    lea rsi, [rbp+8]            ; arg2 => operand1 = M
+    lea rdi, [rsp+0x10]         ; arg1 => result in M
+    lea rsi, [rsp+0x10]         ; arg2 => operand1 = M
     mov rdx, 0x01               ; arg3 => operand2 = 0x01
     call __gmpz_sub_ui          ; M = 2^p - 1
     
     ; -- Main loop
-    mov rcx, [rbp]              ; rcx will be the counter
+    mov rcx, [rsp]              ; rcx will be the counter
     sub rcx, 0x02               ; rcx = p - 2
 .loop:
     push rcx                    ; save counter
     ; - process
-    lea rdi, [rbp+24]           ; arg1 => result in S
-    lea rsi, [rbp+24]           ; arg2 => operand1 = S
-    lea rdx, [rbp+24]           ; arg3 => operand2 = S
+    lea rdi, [rsp+0x20]         ; arg1 => result in S
+    lea rsi, [rsp+0x20]         ; arg2 => operand1 = S
+    lea rdx, [rsp+0x20]         ; arg3 => operand2 = S
     call __gmpz_mul             ; S = S * S
-    lea rdi, [rbp+24]           ; arg1 => result in S
-    lea rsi, [rbp+24]           ; arg2 => operand1 = S
+    lea rdi, [rsp+0x20]         ; arg1 => result in S
+    lea rsi, [rsp+0x20]         ; arg2 => operand1 = S
     mov rdx, 0x02               ; arg3 => operand2 = 0x02
     call __gmpz_sub_ui          ; S = (S*S) - 2
-    lea rdi, [rbp+24]           ; arg1 => result in S
-    lea rdi, [rbp+24]           ; arg2 => numerator = S
-    lea rdx, [rbp+8]            ; arg3 => denominator = M
+    lea rdi, [rsp+0x20]         ; arg1 => result in S
+    lea rdi, [rsp+0x20]         ; arg2 => numerator = S
+    lea rdx, [rsp+0x10]         ; arg3 => denominator = M
     call __gmpz_mod             ; S = ((S*S)-2) mod( M )
     ; - check loop end
     pop rcx                     ; restore counter
@@ -284,9 +284,9 @@ lucaslehmer:
     ; TODO: mpz_cmp_ui is a fucking macro !!! find something
     
     ; -- Clean up
-    lea rdi, [rbp+8]            ; arg1 =  (mpz_t) M
+    lea rdi, [rsp+8]            ; arg1 =  (mpz_t) M
     call __gmpz_clear           ; clean M
-    lea rdi, [rbp+24]           ; arg1 = (mpz_t) M
+    lea rdi, [rsp+24]           ; arg1 = (mpz_t) M
     call __gmpz_clear           ; clean S
 
     mov rax, 0x00
